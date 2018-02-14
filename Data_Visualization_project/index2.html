@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>可视化项目</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.bootcss.com/d3/4.13.0/d3.min.js"></script>
+    <script src="https://cdn.bootcss.com/dimple/2.3.0/dimple.latest.min.js"></script>
+    <style>
+        h1, h2 {
+            text-align: center;            
+        }
+
+        h2 {
+            margin-bottom: 0px;
+        }
+
+        p {
+            padding-right: 3%;
+            padding-left: 3%;
+            text-indent: 35px;
+        }
+        
+        table { 
+            float: right;
+            padding-right: 9%;    
+        }     
+        
+        .button {
+            color: black; 
+            background-color: white;
+            border: 2px solid#E5E5E5;
+            }
+
+        .remarks {
+            font-size:15px;
+
+        }
+        a {
+            padding: 3%;
+        }
+
+        footer {
+            text-align: right;
+            padding-right: 3%;
+        }
+
+    </style>
+    
+</head>
+<body>
+    <h1 id='title'>泰坦尼克号上的生还者</h1>
+    <p>
+    泰坦尼克号（RMS Titanic），是英国白星航运公司下辖的一艘奥林匹克级邮轮，于1912年4月2日完工试航，是当时世界上体积最庞大、内部设施最豪华的客运轮船, 有“永不沉没”的美誉。但泰坦尼克号在她的处女航中便遭厄运，1912年4月14日23时40分左右，泰坦尼克号与一座冰山相撞，造成船体破裂，水密舱进水。次日凌晨2时20分左右，泰坦尼克船体断裂成两截后沉入大西洋底。泰坦尼克号沉没事故为和平时期死伤最惨重的海难之一，本报告中展示了乘客和船员的基本信息及生还情况。
+    </p> 
+    
+    <h2>哪些人更可能生还？</h2>
+    <table>
+        <tr>
+            <td>分组查看：</td>
+            <td>
+                <button class="button" id="button01" >性别</button>
+                <button class="button" id="button02" style="color: black; border: 2px solid#E5E5E5;">船舱等级</button>
+                <button class="button" id="button03" style="color: black; border: 2px solid#E5E5E5;">年龄</button>
+            </td>
+        </tr>
+    </table>
+    
+    <div id="chart_container"></div>
+    <p class = "remarks">备注：点击或指向不同长条将显示具体的比例。</p>
+    <a href="https://baike.baidu.com/item/%E6%B3%B0%E5%9D%A6%E5%B0%BC%E5%85%8B%E5%8F%B7/5677">事件介绍</a>
+    </br>
+    <a href="https://www.kaggle.com/c/titanic">数据来源</a>
+    <footer>制作人：阿丹</footer>
+
+    <script type="text/javascript">
+        function draw_charts(data) {
+            "use strict";
+            
+            // 整理数据
+            for (let i = 0; i < data.length; i++) {
+                // 添加辅助列
+                data[i]['比例'] = 1;
+                if (data[i]['Survived'] == 0) {
+                    data[i]['生存情况'] = "遇难";
+                } else {
+                    data[i]['生存情况'] = "生还";
+                };
+
+                if (data[i]['Sex'] === 'male') {
+                    data[i]['性别'] = '男';
+                } else {
+                    data[i]['性别'] = '女';
+                };
+
+                if (data[i]['Pclass'] == 1) {
+                    data[i]['船舱等级'] = "头等舱";
+                } else if (data[i]['Pclass'] == 2) {
+                    data[i]['船舱等级'] = "二等舱";
+                } else {
+                    data[i]['船舱等级'] = "三等舱";
+                }
+
+                // 给年龄分组
+                if (data[i]['Age'] === "") {
+                    data[i]['年龄'] = '未知';
+                } else if (data[i]['Age'] <= 15) {
+                    data[i]['年龄'] = '0-15';
+                } else if (data[i]['Age'] <= 30) {
+                    data[i]['年龄'] = '16-30';
+                } else if (data[i]['Age'] <= 45) {
+                    data[i]['年龄'] = '31-45';
+                } else if (data[i]['Age'] <= 60) {
+                    data[i]['年龄'] = '46-60';
+                } else {
+                    data[i]['年龄'] = '60+';
+                }; 
+                    
+            };
+            
+
+            // 添加svg层
+            var svg = dimple.newSvg("#chart_container", 1000, 500);
+
+            // 根据选择的字段x_field绘制图形
+            function update_chart(x_field) {
+                
+                var myChart = new dimple.chart(svg, data);
+                myChart.setBounds(420, 10, 500, 400);
+                myChart.defaultColors = [
+                    new dimple.color("#E5E5E5"), 
+                    new dimple.color("#0073C5"),   
+                ];
+                var x = myChart.addCategoryAxis("x", x_field);
+                x.fontSize = "18px";
+                var y = myChart.addPctAxis("y", "比例");
+                y.fontSize = "18px";
+                y.showGridlines = false;
+
+                // 调整x轴标签顺序
+                if (x_field == "年龄") {
+                    x.addOrderRule(["0-15", "16-30", "31-45", "46-60", "60+", "未知"]);
+                } else if (x_field == "船舱等级") {
+                    x.addOrderRule(["头等舱", "二等舱", "三等舱"]);
+                };
+
+                var mySeries = myChart.addSeries("生存情况", dimple.plot.bar);   
+
+                // 添加单个标签
+                mySeries.afterDraw = function (shape, data) {
+                    var s = d3.select(shape),
+                        rect = {
+                            x: parseFloat(s.attr("x")),
+                            y: parseFloat(s.attr("y")),
+                            width: parseFloat(s.attr("width")),
+                            height: parseFloat(s.attr("height"))
+                        };
+                    // 设置标签文字
+                    if (rect.height >= 8) {
+                        svg.append("text")
+                            .attr("x", rect.x + rect.width / 2)
+                            .attr("y", rect.y + rect.height / 2 + 3.5)
+                            .style("text-anchor", "middle")
+                            .style("font-size", "10px")
+                            //.style("font-weight", "bold")
+                            .style("pointer-events", "none")
+                            .text(data.yValue + "人");
+                    }
+                };
+                // 添加图例
+                var myLegend = myChart.addLegend(970, 0, 30, 50, "right");
+                myLegend.fontSize = "15px";
+
+                // 绘图，调整动画时间间隔
+                myChart.draw(400);
+            }
+            
+            // 设置默认图表
+            update_chart('性别');
+            
+            // 点击按钮后切换图表
+            d3.select('#button01').on('click', function () {
+                svg.selectAll('*').remove();
+                update_chart('性别'); 
+            });    
+            d3.select('#button02').on('click', function () {
+                svg.selectAll('*').remove();
+                update_chart('船舱等级'); 
+            });
+            d3.select('#button03').on('click', function () {
+                svg.selectAll('*').remove();
+                update_chart('年龄');
+            }); 
+
+        }     
+
+        d3.csv('titanic_data.csv', draw_charts);   
+    </script>
+               
+</body>
+</html>
