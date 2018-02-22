@@ -1,0 +1,807 @@
+白葡萄酒数据集分析
+========================================================
+
+------
+
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+
+# 加载你最终使用的所有组件
+# 在这个代码块的分析中。
+
+# 注意，在这个代码块中，将参数 "echo" 设为假。
+# This prevents the code from displaying in the knitted HTML output.这可以避免代码混入 HTML 输出显示。
+# 应当在文件中，对所有代码块设为 echo=FALSE 。
+
+library(ggplot2)
+theme_set(theme_bw())
+library(GGally)
+library(dplyr)
+library(gridExtra)
+library(memisc)
+```
+
+
+```{r echo=FALSE, Load_the_Data}
+# 加载数据
+white_wine <- read.csv('wineQualityWhites.csv')
+```
+
+# 1 单变量探索部分
+
+```{r echo=FALSE, Dataset_structure}
+# 数据框结构
+str(white_wine)
+```
+
+```{r Summarise_Data}
+summary(white_wine)
+```
+
++ 该数据集共包含4898种白葡萄酒的11个理化指标以及品质数据。     
++ 11种理化指标分别为非挥发性酸、挥发性酸、柠檬酸、残余糖分、氯化物、游离二氧化硫、总二氧化硫、密度、酸度、硫酸盐和乙醇。    
++ 该数据集数据较为完整，无缺失值。    
+
+
+## 1.1 单变量绘图
+
+### 1.1.1 品质
+
+```{r echo=FALSE, quality_plot}
+ggplot(aes(x = quality), data = white_wine)+
+  geom_histogram(binwidth = 1)+
+  scale_x_continuous(breaks = 1 : 10)
+```
+
+```{r table_quality}
+table(white_wine$quality)
+```
+
+评分标准为0-10分，但本数据集中样品的质量评分在3至9之间，大部分样品的评分在5至7之间，其中评分为6的样品最多, 有20个样品的评分为3，评分较差，另有5个样品的评分为9，评分较高。    
+
+
+
+### 1.1.2 乙醇
+
+```{r alcohol_plot}
+ggplot(aes(x = alcohol), data = white_wine)+
+  geom_histogram(binwidth = 0.1)+
+  scale_x_continuous(breaks = seq(6, 16, 0.5))
+```
+
+```{r summarise_alcohol}
+summary(white_wine$alcohol)
+```
+
+乙醇是酒最主要的成分, 样品中乙醇含量（体积比）在8.00%和14.20%之间。     
+
+
+
+### 1.1.3 酸性成分
+
+```{r pH_plot}
+ggplot(aes(x = pH), data = white_wine)+
+  geom_histogram(binwidth = 0.01)+
+  scale_x_continuous(breaks = seq(2.6, 4.0, 0.1))
+
+```
+
+```{r table_pH}
+summary(white_wine$pH)
+```
+
+样品的pH值在2.72至3.82之间，均呈酸性，接近正态分布。     
+
+
+
+```{r fixed_acidity_plot}
+# 非挥发性酸的含量
+ggplot(aes(x = fixed.acidity), data = white_wine)+
+  geom_histogram(binwidth = 0.1)+
+  scale_x_continuous(breaks = seq(0, 15, 1))
+
+```
+
+```{r}
+summary(white_wine$fixed.acidity)
+```
+
+样品的非挥发性酸含量平均值为6.855 g/dm^3。     
+
+
+
+```{r volatile_acidity_plot}
+ggplot(aes(x = volatile.acidity), data = white_wine)+
+  geom_histogram(binwidth = 0.01)+
+  scale_x_continuous(breaks = seq(0, 1.2, 0.1))
+
+```
+
+```{r}
+summary(white_wine$volatile.acidity)
+```
+
+挥发性酸含量在0.08 g/dm^3至1.10 g/dm^3之间。      
+
+
+查阅资料得知，食品中总酸含量为挥发性酸和非挥发性酸含量总和，添加新变量总酸（total.acid）并进行探索。     
+ 
+```{r total_acid_plot}
+white_wine$total.acid <-
+  white_wine$fixed.acidity + white_wine$volatile.acidity
+
+ggplot(aes(x = total.acid), data = white_wine)+
+  geom_histogram(binwidth = 0.5)+
+  scale_x_continuous(breaks = 3 : 15)
+```
+
+```{r}
+summary(white_wine$total.acid)
+```
+
+样品中总酸含量平均值为7.133 g/dm^3。     
+食品中总酸含量与pH值并不对等，但应该有一定关联，后续工作可以尝试探索。      
+
+
+
+```{r citric_acid_plot}
+ggplot(aes(x = citric.acid), data = white_wine)+
+  geom_histogram(binwidth = 0.05)+
+  scale_x_continuous(breaks = seq(0, 1.4, 0.2))
+
+```
+
+```{r}
+summary(white_wine$citric.acid)
+
+subset(white_wine, citric.acid > 1.1)
+```
+
+大部分样品的柠檬酸含量接近正态分布，有2个样品的柠檬酸含量明显高于其他样品。      
+
+
+
+### 1.1.3 残余糖分
+
+```{r residual_sugar_plot}
+ggplot(aes(x = residual.sugar), data = white_wine)+
+  geom_histogram(binwidth = 0.5)+
+  scale_x_continuous(breaks = seq(0, 60, 5))
+```
+
+
+```{r}
+summary(white_wine$residual.sugar)
+subset(white_wine, residual.sugar > 35)
+```
+
+有1个样品的糖分含量高达65.8 g/dm^3，可能属于异常值。       
+糖分含量分布呈右偏斜，对糖分含量进行对数转换后作图。      
+
+```{r}
+ggplot(aes(x = residual.sugar), data = white_wine)+
+  geom_histogram(binwidth = 0.05)+
+  scale_x_log10()+
+  xlab('residual.sugar(log10)')
+```
+
+对数转换后，大致呈双峰正态分布, 可以看出样品残余糖分含量差别较大。      
+
+
+
+### 1.1.4 矿物盐
+
+```{r chlorides_plot}
+ggplot(aes(x = chlorides), data = white_wine)+
+  geom_histogram(binwidth = 0.01)+
+  scale_x_continuous(breaks = seq(0, 0.3, 0.02))
+
+```
+
+```{r}
+summary(white_wine$chlorides)
+```
+
+氯化物含量平均值约为0.0458 g/dm^3。      
+
+
+
+```{r sulphates_plot}
+ggplot(aes(x = sulphates), data = white_wine)+
+  geom_histogram(binwidth = 0.05)+
+  scale_x_continuous(breaks = seq(0, 1, 0.1))
+
+```
+
+```{r}
+summary(white_wine$sulphates)
+```
+
+硫酸盐含量平均值为0.49 g/dm^3。       
+
+
+
+### 1.1.5 二氧化硫
+
+二氧化硫作为食品添加剂被添加到葡萄酒中，具有保鲜、防腐、抗氧化的作用。   
+
+```{r free_SO2_plot}
+ggplot(aes(x = free.sulfur.dioxide), data = white_wine)+
+  geom_histogram(binwidth = 5)+
+  scale_x_continuous(breaks = seq(0, 300, 25))
+
+```
+
+```{r}
+summary(white_wine$free.sulfur.dioxide)
+```
+
+```{r}
+subset(white_wine, white_wine$free.sulfur.dioxide > 150)
+```
+
+游离二氧化硫平均值为35.31 mg/dm^3, 有1个样品的游离二氧化硫含量高达289 mg/dm^3，其品质评分为3分,可能是由于游离二氧化硫含量过高对嗅觉有刺激，导致感官评价不佳。    
+
+
+
+```{r total_SO2_plot}
+ggplot(aes(x = total.sulfur.dioxide), data = white_wine)+
+  geom_histogram(binwidth = 5)+
+  scale_x_continuous(breaks = seq(0, 500, 25))
+
+```
+
+```{r}
+summary(white_wine$total.sulfur.dioxide)
+```
+
+```{r}
+subset(white_wine, white_wine$total.sulfur.dioxide > 350)
+```
+
+编号为4746的样品总二氧化硫含量为440 g/dm^3，与游离二氧化硫最高的是同一个样品。       
+结合资料，创建新变量非游离二氧化硫（fixed.sulfur.dioxide）, 探究其分布情况。     
+
+```{r fixed_SO2}
+white_wine$fixed.sulfur.dioxide <- white_wine$total.sulfur.dioxide-
+  white_wine$free.sulfur.dioxide
+
+```
+
+```{r fixed_SO2_plot}
+ggplot(aes(x = fixed.sulfur.dioxide), data = white_wine)+
+  geom_histogram(binwidth = 5)+
+  scale_x_continuous(breaks = seq(0, 400, 25))
+
+```
+
+```{r}
+summary(white_wine$fixed.sulfur.dioxide)
+```
+
+非游离二氧化硫平均值为103.1 mg/dm^3。      
+
+
+### 1.1.6 密度
+
+```{r density_plot}
+ggplot(aes(x = density), data = white_wine)+
+  geom_histogram(binwidth = 0.001)+
+  scale_x_continuous(breaks = seq(0, 1.04, 0.01))
+
+```
+
+```{r}
+summary(white_wine$density)
+```
+
+由图中看出样品的密度分布较集中, 平均为0.994 g/cm^3, 放缩坐标轴使绘图更直观。     
+
+```{r density_plot_2}
+ggplot(aes(x = density), data = white_wine)+
+  geom_histogram(binwidth = 0.001)+
+  coord_cartesian(xlim = c(0.98, 1.01))
+
+```
+
+葡萄酒样品密度整体来说比较稳定。       
+
+
+## 1.2 单变量分析小结
+
++ 大多数指标的分布较接近正态分布，残余糖分的含量分布呈右偏斜，进行对数转换后，分布大致呈双峰正态分布。    
++ 本数据集中的品质指标为感官评分，我感兴趣的主要有pH值、二氧化硫（包括游离二氧化硫和总二氧化硫）、糖及乙醇的含量对白葡萄酒感官的影响是否呈一定规律。      
++ 创建了变量总酸（total.acid），想分析作为综合指标的总酸是否会影响葡萄酒品质评分。       
++ 创建了变量非游离二氧化硫(fixed.sulfur.dioxide)，想分别分析非游离二氧化硫、游离二氧化硫和总二氧化硫哪个指标对葡萄酒感官品质影响更明显。    
+
+------
+
+# 2 双变量探索部分
+
+探索各变量之间是否有一定关联。    
+
+
+## 2.1 散点图矩阵
+
+借助散点图矩阵探索各变量之间的关系。     
+
+```{r echo=FALSE, Bivariate_Plots, fig.width=10, fig.height=8}
+ggpairs(white_wine,
+        columns = 2 :ncol(white_wine),
+        lower = list(continuous = wrap('points', shape = I('.'))))
+        
+```
+
+```{r}
+#ggsave('white_wine_scatterplot_matrix.png', width = 10, height = 8, units = 'in')
+```
+
+由散点矩阵图看到，残余糖分和密度相关系数为0.839，乙醇和密度的相关系数为-0.78。         
+密度与品质的相关系数为-0.307，乙醇与品质的相关系数为0.436，值得进一步探索。       
+此外，总酸和非挥发性酸之间相关系数为0.993，总二氧化硫和非游离二氧化硫之间相关系数为0.922，但由于总酸和非游离二氧化硫都是通过原有变量进行计算而创建的新变量，与原有变量之间呈现出强相关性并无太大意义。    
+
+
+
+## 2.2 双变量分组绘图
+
+```{r}
+ggplot(white_wine, aes(x = residual.sugar, y = density))+
+  geom_point()
+```
+
+添加拟合线，调整坐标轴范围，聚焦需要观察的区域。     
+
+```{r}
+ggplot(white_wine, aes(x = residual.sugar, y = density))+
+  geom_point(alpha = 0.5)+
+  geom_smooth(method = 'lm', color = 'red')+
+  coord_cartesian(xlim = c(0, 25), ylim = c(0.985, 1.005))
+
+```
+
+```{r}
+cor.test(white_wine$residual.sugar, white_wine$density)
+```
+
+残余糖分越多的葡萄酒，其密度也相应越大，两者相关系数达0.839。     
+
+
+```{r}
+ggplot(white_wine, aes(x = alcohol, y = density))+
+  geom_point()
+```
+
+调整数据点透明度，添加拟合线，聚焦需要观察的区域。    
+
+```{r}
+ggplot(white_wine, aes(x = alcohol, y = density))+
+  geom_point(alpha = 0.2)+
+  coord_cartesian(ylim = c(0.985, 1.005))+
+  geom_smooth(method = 'lm', color = 'red')
+
+```
+
+```{r}
+cor.test(white_wine$alcohol, white_wine$density)
+```
+
+乙醇和密度相关系数为-0.78。葡萄酒最主要的成分为水和乙醇，乙醇密度小于水，随着乙醇比例增大，酒液整体密度逐渐变小，所以两者呈负相关也是符合常理的。       
+
+
+
+```{r}
+ggplot(white_wine, aes(x = total.acid, y = pH))+
+  geom_point(alpha = 0.2)+
+  geom_smooth(method = 'lm', color = 'red')
+
+```
+
+```{r}
+cor.test(white_wine$total.acid, white_wine$pH)
+```
+
+大致可看出总酸度越大，pH值越低的趋势，两者相关性并不强是因为pH值反映的是游离的氢离子的浓度，而总酸度对应的是液体中所有的酸。     
+
+
+
+本次EDA分析最重要目标是探究各理化指标对品质评分的关系，因此接下来将围绕品质评分进行进一步探索。
+
+```{r}
+ggplot(aes(quality, alcohol), data = white_wine)+
+  geom_point()
+```
+
+上图展示品质评分与乙醇含量的关系，增加抖动并叠加箱线图使数据点分布情况展示更加清晰。      
+
+```{r}
+ggplot(aes(factor(quality), alcohol), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+  
+```
+```{r}
+cor.test(white_wine$quality, white_wine$alcohol)
+```
+
+综合来看，乙醇含量越高的葡萄酒，其品质评分也越高。     
+
+
+
+
+```{r}
+ggplot(aes(factor(quality), volatile.acidity), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(0.1, 0.7))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+```{r}
+cor.test(white_wine$quality, white_wine$volatile.acidity)
+```
+
+总体来看，挥发性酸含量较低的样品，品质评分较高，这可能是由于挥发出的酸性气味会影响嗅觉感官。    
+
+
+
+```{r}
+ggplot(aes(factor(quality), total.acid), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(4, 11))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+```{r}
+cor.test(white_wine$quality, white_wine$total.acid)
+```
+
+总酸量较高的葡萄酒，其品质评分稍低，可能是因为太酸使口感变差。      
+
+
+
+```{r}
+ggplot(aes(factor(quality), fixed.sulfur.dioxide), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(25, 200))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+
+```{r}
+cor.test(white_wine$quality, white_wine$fixed.sulfur.dioxide)
+```
+相对来说，非游离二氧化硫含量高的葡萄酒品质评分较低。     
+
+
+
+
+```{r}
+ggplot(aes(factor(quality), citric.acid), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(0, 1))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+```{r}
+cor.test(white_wine$quality, white_wine$citric.acid)
+```
+
+柠檬酸含量与品质评分之间较难看出规律。      
+
+
+
+
+```{r}
+ggplot(aes(factor(quality), residual.sugar), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(0, 25))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+```{r}
+cor.test(white_wine$quality, white_wine$residual.sugar)
+```
+
+```{r }
+ggplot(aes(x = residual.sugar), data = white_wine)+
+  geom_histogram()+
+  facet_wrap(~quality, ncol = 3)+
+  ggtitle('residual sugar by quality' )
+```
+
+大部分样品含糖量较低，残留糖量与品质评分之间较难看出联系。     
+
+
+
+
+```{r}
+ggplot(aes(factor(quality), chlorides), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(0.01, 0.1))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+
+```{r}
+cor.test(white_wine$quality, white_wine$chlorides)
+```
+
+葡萄酒中氯化物（氯化钠）含量越高，品质评分越低。     
+
+
+
+
+```{r}
+ggplot(aes(factor(quality), sulphates), data = white_wine)+
+  geom_jitter(height = 0,alpha = 0.2, color = '#1874CD')+
+  geom_boxplot(alpha = 0.8)+
+  coord_cartesian(ylim = c(0.2, 1.1))+
+  geom_point(stat = 'summary', fun.y = 'mean',
+             color = 'red',shape = 18, size = 3)
+```
+
+```{r}
+cor.test(white_wine$quality, white_wine$sulphates)
+```
+
+较难看出硫酸盐含量与葡萄酒品质评分之间的规律。     
+
+
+
+
+## 2.2 双变量分析小结
+
++ 双变量探索过程中发现糖含量与密度，乙醇含量与密度均呈现较强的线性关系。
++ 葡萄酒品质评分主要为感官评价，因此葡萄酒中对味觉和嗅觉易产生较强烈刺激的成分可能会直接影响品质评分。
++ 分析中发现乙醇含量较高的葡萄酒品质评分可能更高，非游离二氧化硫含量高的葡萄酒品质评分可能更低。同时，挥发性酸散发的酸性气体以及较高的总酸含量则可能导致较低的品质评分。一个有趣的发现是，葡萄酒中含有氯化钠，也就是食盐，“太咸”的葡萄酒应该是不受欢迎的。    
+
+------
+
+
+# 3 多变量探索部分
+
+对于多个变量之间的关系，我有两个较感兴趣的探索方向，一是各化学成分与密度之间的关系，二是能产生独特味道的成分与品质评分之间的关系，接下来分别进行探索。    
+
+
+## 3.1 影响密度的因素
+
+乙醇和密度有密切关系，将乙醇作为分类变量。     
+
+```{r quantile_alcohol}
+quantile(white_wine$alcohol)
+```
+
+```{r cut_alcohlo}
+white_wine$alcohol.bucket <-
+  with(white_wine, cut(alcohol, c(7.5, 9.5, 10.4, 11.4, 14.2)))
+summary(white_wine$alcohol.bucket)
+```
+
+```{r}
+ggplot(aes(x = fixed.sulfur.dioxide, y = density,
+           color = white_wine$alcohol.bucket), data = white_wine)+
+  geom_point(alpha = 0.3)+
+  coord_cartesian(xlim = c(0, 200), ylim = c(0.985, 1.005))+
+  geom_smooth(method = 'lm', se = FALSE, size = 1.5)+
+  scale_color_brewer(type = 'seq', palette = 1, 
+                     guide = guide_legend(title = 'alcohol', reverse = TRUE))
+```
+
+可以看到乙醇含量高的样品密度往往较低，非游离二氧化硫则与密度呈正相关。    
+
+
+
+
+```{r}
+ggplot(aes(x = chlorides, y = density, color = white_wine$alcohol.bucket),
+       data = white_wine)+
+  geom_point(alpha = 0.5)+
+  coord_cartesian(xlim = c(0, 0.1), ylim = c(0.985, 1.005))+
+  geom_smooth(method = 'lm', se = FALSE, size = 1.5)+
+  scale_color_brewer(type = 'seq', palette = 1,
+                     guide = guide_legend(title = 'alcohol', reverse = TRUE))
+```
+
+整体而言，氯化物含量越高的样品密度越大。     
+
+
+
+
+```{r}
+ggplot(data = white_wine, aes(x = residual.sugar, y = density))+
+  geom_point(aes(color = white_wine$alcohol.bucket))+
+  ylim(quantile(white_wine$density, 0.00),
+       quantile(white_wine$density, 0.95))+
+  xlim(quantile(white_wine$residual.sugar, 0.95),
+       quantile(white_wine$residual.sugar, 0.00))+
+  scale_color_brewer(type = 'seq', palette = 1,
+                     guide = guide_legend(title = 'alcohol', reverse = TRUE))
+```
+
+由上图可以看出，乙醇含量高的样品，残余糖分往往较少，而且密度相对较低。     
+葡萄酒是通过发酵产生的，随着发酵的进行，糖分逐渐减少，发酵产物乙醇逐渐增多，葡萄酒中乙醇的比例上升，葡萄酒的密度随之下降，上图较好地展现了发酵过程中糖、乙醇、密度变化的规律。       
+
+
+
+
+当然，葡萄酒中各类化学成分应该都会葡萄酒密度产生一定影响，非气态化学成分包括非挥发性酸、残余糖分、氯化物、硫酸盐、乙醇和非游离二氧化硫，尝试构建线性模型进行验证。
+
+```{r}
+m1 <- lm(density ~ fixed.acidity + residual.sugar + chlorides+
+           sulphates + alcohol + fixed.sulfur.dioxide,
+         data = white_wine)
+
+summary(m1)
+```
+
+各成分均显示出强显著性，R^2为0.941，p值极小，该结果符合预期。      
+
+
+
+## 3.2 影响品质的因素
+
+在双变量探索部分发现乙醇与品质有一定关联，而密度、残余糖分、非游离二氧化硫、氯化物又与乙醇有一定关联，以此为主要思路进行延伸探索。      
+
+
+
+
+```{r fig.height=8, fig.width=12}
+p1 <- ggplot(aes(x = density, y = alcohol, color = factor(quality)),
+       data = white_wine)+
+  geom_point(alpha = 0.5)+
+  geom_smooth(method = "lm", se = FALSE, size = 1.5)+
+  coord_cartesian(xlim = c(0.985, 1.005), ylim = c(7.5, 13.5))+
+  scale_color_brewer(type = 'seq', palette = 1,
+                     guide = guide_legend(reverse = TRUE))+
+  labs(x = 'density', y = 'alcohol')+
+  ggtitle('alcohol vs. density vs. quality')
+
+p2 <- ggplot(aes(x = residual.sugar, y = alcohol,
+                 color = factor(quality)), data = white_wine)+
+  geom_point(alpha = 0.5)+
+  scale_color_brewer(type = 'seq', palette = 5,
+                     guide = guide_legend(reverse = TRUE))+
+  geom_smooth(method = "lm", se = FALSE, size = 1.5)+
+  coord_cartesian(xlim = c(0, 25), ylim = c(7.5, 13.5))+
+  labs(x = 'residual.sugar', y = 'alcohol')+
+  ggtitle('alcohol vs. residual.sugar vs. quality')
+
+p3 <- ggplot(aes(x = fixed.sulfur.dioxide, y = alcohol,
+                 color = factor(quality)), data = white_wine)+
+  geom_point(alpha = 0.5)+
+  scale_color_brewer(type = 'seq', palette = 7,
+                     guide = guide_legend(reverse = TRUE))+
+  geom_smooth(method = "lm", se = FALSE, size = 1.5)+
+  coord_cartesian(xlim = c(0, 250), ylim = c(7.5, 13.5))+
+  labs(x = 'fixed.sulfur.dioxide', y = 'alcohol')+
+  ggtitle('alcohol vs. fixed.sulfur.dioxide vs. quality')
+
+p4 <- ggplot(aes(x = chlorides, y = alcohol, color = factor(quality)),
+       data = white_wine)+
+  geom_point(alpha = 0.5)+
+  scale_color_brewer(type = 'seq', palette = 11,
+                     guide = guide_legend(reverse = TRUE))+
+  geom_smooth(method = "lm", se = FALSE, size = 1.5)+
+  coord_cartesian(xlim = c(0, 0.1), ylim = c(7.5, 13.5))+
+  labs(x = 'chlorides', y = 'alcohol')+
+  ggtitle('alcohol vs. chlorides vs. quality')
+
+grid.arrange(p1, p2, p3, p4)
+```
+
+从数据点的分布情况来看，密度、残余糖分、非游离二氧化硫、氯化物均在一定程度上与乙醇呈负相关，与品质评分似乎也均呈负相关，总体来说关系不是非常明确。      
+
+
+
+
+考虑到感官评分会受到很多因素的影响，尝试使用所有的理化指标构建多元线性模型，探索对葡萄酒品质的影响。
+                
+```{r}
+mo1 <- lm(quality ~ density, data = white_wine)
+mo2 <- update(mo1, ~ . + alcohol)
+mo3 <- update(mo2, ~ . + residual.sugar)
+mo4 <- update(mo3, ~ . + fixed.acidity)
+mo5 <- update(mo4, ~ . + volatile.acidity)
+mo6 <- update(mo5, ~ . + citric.acid)
+mo7 <- update(mo6, ~ . + chlorides)
+mo8 <- update(mo7, ~ . + free.sulfur.dioxide)
+mo9 <- update(mo8, ~ . + total.sulfur.dioxide)
+mo10 <- update(mo9, ~ . + pH)
+mo11 <- update(mo10, ~ . + sulphates)
+
+mtable(mo1, mo2, mo3, mo4, mo5, mo6, mo7, mo8, mo9, mo10, mo11)
+```
+建模结果并不理想，相关性较弱，R^2最高也只有0.282, 原因可能是其他一些影响葡萄酒品质的因素并未包含在本数据集中，又或者是应该使用非线性模型。    
+
+
+## 3.3 多变量分析小结
+
++ 对糖分、乙醇、密度三者的关系进行了进一步探索，糖分与密度呈正相关，乙醇与密度呈负相关，糖分与乙醇呈负相关。可联系葡萄酒发酵机理进行解释，发酵过程中糖逐渐被微生物利用，产生乙醇，发酵液密度也随之下降。
++ 构建葡萄酒中几类成分与密度关系的线性模型，模型显著性强，验证了关于影响密度因素的推测。
++ 对乙醇、密度、非游离二氧化硫、氯化物酸与葡萄酒品质评分的关系进行探索，从图中观察乙醇含量高的葡萄酒评分可能更高，密度较小、氯化物、残余糖分和非游离二氧化硫含量较低的葡萄酒评分可能更高。
++ 尝试使用数据集中各类理化指标构建与品质评分的线性模型，但是结果不理想，可能还需要其他相关数据来辅助构建，或者需要更换模型类型。
+
+------
+
+# 4 定稿图与总结
+
+### 4.1.1 绘图一  
+```{r echo=FALSE, Plot_One}
+ggplot(aes(x = quality), data = white_wine)+
+  geom_histogram(binwidth = 1, color = 'black', fill = '#BDD7E7')+
+  scale_x_continuous(breaks = 1 : 10)+
+  labs(x = '品质', y = '频次', title='图1：品质分布直方图')+
+  theme(title = element_text(size = 18),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+  
+```
+
+### 4.1.2 描述一
+
+图1展现白葡萄酒品质评分分布情况，由图中可以看出，大部分样品品质评分集中在5-7之间，品质评分为3和9的样品极少。    
+
+
+### 4.2.1 绘图二
+```{r echo=FALSE, Plot_Two}
+ggplot(white_wine, aes(x = residual.sugar, y = density))+
+  geom_point(alpha = 0.5, color = '#7EC0EE')+
+  geom_smooth(method = 'lm', color = '#2171B5')+
+  coord_cartesian(xlim = c(0, 22), ylim = c(0.985, 1.005))+
+  labs(x = '残余糖分（g/dm^3）', y = '密度（g/cm^3）',
+       title='图2：密度-残余糖分散点图')+
+  theme(title = element_text(size = 18),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12))
+```
+
+### 4.2.2 描述二
+
+图2展现白葡萄酒密度与残余糖分含量间的关系，由图中看出两者呈明显线性关系，残余糖分越多的样品，其密度也相应越大，另外两者的皮尔森相关系数达0.839。   
+
+### 4.3.1 绘图三
+```{r echo=FALSE, Plot_Three}
+ggplot(data = white_wine, aes(x = residual.sugar, y = density))+
+  geom_point(aes(color = white_wine$alcohol.bucket))+
+  ylim(quantile(white_wine$density, 0.00),
+       quantile(white_wine$density, 0.95))+
+  xlim(quantile(white_wine$residual.sugar, 0.95),
+       quantile(white_wine$residual.sugar, 0.00))+
+  scale_color_brewer(type = 'seq', palette = 1,
+                     guide = guide_legend(title='乙醇（%）', reverse=TRUE))+
+  labs(x = '残余糖分（g/dm^3）', y = '密度（g/cm^3）', 
+       title = '图3：乙醇-密度-残余糖分散点图')+
+  theme(title = element_text(size = 18),
+        axis.title.x = element_text(size = 12),
+        axis.title.y = element_text(size = 12),
+        legend.title = element_text(size = 12))
+
+```
+
+### 4.3.2 描述三
+
+图3展示了乙醇、密度、残余糖分三者间的关系，绘图区右下角和左上角形成鲜明对比，残余糖分含量低的样品密度也相对较低，但是其乙醇含量往往较高。上图较好地验证了葡萄酒产生原理，在发酵过程中糖分逐渐被微生物利用，产生乙醇。    
+
+------
+
+# 5 反思
+本次分析中我发现了一些有趣的情况，比如残余糖分和乙醇呈负相关，乙醇比例更高的葡萄酒密度更低且评分可能更高。我原本最想探索的是各理化指标对葡萄酒品质评分的影响并构建出模型，但是在双变量以及多变量分析过程中只发现了个别指标可能对品质评分有影响，并未获得比较理想的分析结果，有些遗憾。但是我想这可能也会是进行数据分析工作时比较常见的情况，对此应当有正确的认识，我也相信不断提升数据分析技能将会使以后的分析工作更加顺利。     
+
+在完成本报告的过程中，我更加熟悉了使用R语言进行探索性数据分析流程以及一些常用操作，使用了一些函数对数据进行整理，尝试绘制不同类型的图形并对其进行美化从而更好的展现可视化效果。与此同时，我也深深感到自己使用R语言不够熟练，R语言确实是一款很优秀的数据分析以及可视化软件，值得好好探索。今后需要继续深入学习，通过不断实践来提高。
+
+------
+
+数据集来源：    
+P.  Cortez,  A.  Cerdeira,  F.Almeida,  T.  Matos  and  J.  Reis.  Modeling  wine  preferences  by  data  mining  from physicochemical properties. In Decision Support Systems, Elsevier, 47(4):547-553.      
+参考资料：    
+http://blog.sina.com.cn/s/blog_8cad55d90102x3yg.html     
+https://www.douban.com/note/579291905/       
+http://wine.baike.com/article-1255727.html      
